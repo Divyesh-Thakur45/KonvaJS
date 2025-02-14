@@ -1,5 +1,2 @@
 @import "tailwindcss";
 
-.toolbar-btn {
-  @apply flex items-center justify-center w-12 h-12 bg-gray-200 hover:bg-gray-300 rounded-md transition duration-300 shadow-md;
-};
