@@ -25,9 +25,25 @@ export default function App() {
   const [points, setPoints] = useState([]);
   const [isClosed, setIsClosed] = useState(false);
   const [showPolygonBorder, setShowPolygonBorder] = useState(false);
+  // Add a state for zoom scale
+  const [secondImageScale, setSecondImageScale] = useState(1);
+
+  // Add states for history
+  const [pointsHistory, setPointsHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
 
   const stageRef = useRef(null);
   const layerRef = useRef(null);
+
+  // Zoom In Function
+  const handleZoomIn = () => {
+    setSecondImageScale((prevScale) => prevScale + 0.1);
+  };
+
+  // Zoom Out Function
+  const handleZoomOut = () => {
+    setSecondImageScale((prevScale) => Math.max(0.1, prevScale - 0.1));
+  };
 
   // Load Image into Konva
   useEffect(() => {
@@ -173,8 +189,29 @@ export default function App() {
         return;
       }
     }
-
+    const newPoints = [...points, x, y];
     setPoints([...points, x, y]);
+
+    // Save to history
+    const newHistory = [...pointsHistory.slice(0, historyIndex + 1), newPoints];
+    setPointsHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  // Undo Function
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex((prevIndex) => prevIndex - 1);
+      setPoints(pointsHistory[historyIndex - 1]);
+    }
+  };
+
+  // Redo Function
+  const handleRedo = () => {
+    if (historyIndex < pointsHistory.length - 1) {
+      setHistoryIndex((prevIndex) => prevIndex + 1);
+      setPoints(pointsHistory[historyIndex + 1]);
+    }
   };
 
   // Handle Edit Tool Click
@@ -185,7 +222,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex items-center h-[auto] w-[80%]">
+    <div className="lg:flex items-center h-[auto] w-[100%]">
       <div className="flex flex-col items-center gap-6 w-[auto] mt-[40px] p-6 bg-white rounded-lg shadow-xl h-[90vh] overflow-y-scroll">
         {/* Toolbar Section */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 lg:grid-cols-1 gap-4 p-4 rounded-md bg-gray-100 shadow-md">
@@ -305,129 +342,155 @@ export default function App() {
         </div>
       </div>
 
-      {/* KonvaJS Canvas */}
-      <div className="border-2 ml-[230px]">
-        <Stage
-          ref={stageRef}
-          width={800}
-          height={500}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onClick={handleClick}
-        >
-          <Layer ref={layerRef}>
-            {/* Background Image */}
-            {konvaImage && <Image image={konvaImage} x={50} y={50} width={500} height={500} draggable={drag} />}
+      <div className="m-auto">
+        {/* Add Undo/Redo Buttons in the Toolbar */}
+        <div className="toolbar-btn items-center flex justify-between">
+          <button onClick={handleUndo} className="text-2xl group-hover:text-blue-500 transition">
+            ↩️
+          </button>
+          <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Undo/Redo</span>
+          <button onClick={handleRedo} className="text-2xl group-hover:text-blue-500 transition">
+            ↪️
+          </button>
+        </div>
+        {/* KonvaJS Canvas */}
+        <div className="border-2">
+          <Stage
+            ref={stageRef}
+            width={window.innerWidth / 2}
+            height={window.innerHeight / 1.5}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onClick={handleClick}
+          >
+            <Layer ref={layerRef}>
+              {/* Background Image */}
+              {konvaImage && <Image image={konvaImage} x={50} y={50} width={500} height={500} draggable={drag} />}
 
-            {/* Render the Polygon */}
-            {points.length > 1 && (
-              <Group
-                clipFunc={(ctx) => {
-                  ctx.beginPath();
-                  ctx.moveTo(points[0], points[1]);
-                  for (let i = 2; i < points.length; i += 2) {
-                    ctx.lineTo(points[i], points[i + 1]);
-                  }
-                  ctx.closePath();
-                }}
-              >
-                {/* Second Image inside the Polygon */}
-                {konvaSecondImage && (
-                  <Image
-                    image={konvaSecondImage}
-                    x={Math.min(...points.filter((_, i) => i % 2 === 0))}
-                    y={Math.min(...points.filter((_, i) => i % 2 !== 0))}
-                    width={Math.max(...points.filter((_, i) => i % 2 === 0)) - Math.min(...points.filter((_, i) => i % 2 === 0))}
-                    height={Math.max(...points.filter((_, i) => i % 2 !== 0)) - Math.min(...points.filter((_, i) => i % 2 !== 0))}
-                  />
-                )}
-              </Group>
-            )}
+              {/* Render the Polygon */}
+              {points.length > 1 && (
+                <Group
+                  clipFunc={(ctx) => {
+                    ctx.beginPath();
+                    ctx.moveTo(points[0], points[1]);
+                    for (let i = 2; i < points.length; i += 2) {
+                      ctx.lineTo(points[i], points[i + 1]);
+                    }
+                    ctx.closePath();
+                  }}
+                >
+                  {/* Second Image inside the Polygon */}
+                  {konvaSecondImage && (
+                    <Image
+                      image={konvaSecondImage}
+                      x={Math.min(...points.filter((_, i) => i % 2 === 0))}
+                      y={Math.min(...points.filter((_, i) => i % 2 !== 0))}
+                      width={Math.max(...points.filter((_, i) => i % 2 === 0)) - Math.min(...points.filter((_, i) => i % 2 === 0))}
+                      height={Math.max(...points.filter((_, i) => i % 2 !== 0)) - Math.min(...points.filter((_, i) => i % 2 !== 0))}
+                      scaleX={secondImageScale}
+                      scaleY={secondImageScale}
+                      draggable={drag}
+                    />
+                  )}
+                </Group>
+              )}
 
-            {/* Render Polygon Border */}
-            {showPolygonBorder && points.length > 1 && (
-              <Line
-                points={points}
-                stroke={color}
-                strokeWidth={2}
-                closed={true}
-              />
-            )}
+              {/* Render Polygon Border */}
+              {showPolygonBorder && points.length > 1 && (
+                <Line
+                  points={points}
+                  stroke={color}
+                  strokeWidth={2}
+                  closed={true}
+                />
+              )}
 
-            {/* Render Points */}
-            {showPolygonBorder &&
-              points.map((point, index) => {
-                if (index % 2 !== 0) return null; // Skip odd indices
-                return (
-                  <Circle
-                    key={index}
-                    x={points[index]}
-                    y={points[index + 1]}
-                    radius={1}
-                    stroke={color}
-                    strokeWidth={2}
-                    fill={color}
-                  />
-                );
-              })}
+              {/* Render Points */}
+              {showPolygonBorder &&
+                points.map((point, index) => {
+                  if (index % 2 !== 0) return null; // Skip odd indices
+                  return (
+                    <Circle
+                      key={index}
+                      x={points[index]}
+                      y={points[index + 1]}
+                      radius={1}
+                      stroke={color}
+                      strokeWidth={2}
+                      fill={color}
+                    />
+                  );
+                })}
 
-            {rectangles.map((rect, i) => (
-              <Rect key={i} {...rect} fill={color} stroke="black" strokeWidth={2} draggable={drag} />
-            ))}
-            {circles.map((circle, i) => (
-              <Circle key={i} {...circle} fill={color} stroke="black" strokeWidth={2} draggable={drag} />
-            ))}
-            {arrows.map((arrow, i) => (
-              <Line key={i} {...arrow} stroke={color} strokeWidth={2} draggable={drag} />
-            ))}
-            {penLines.map((pen, i) => (
-              <Line key={i} {...pen} stroke={color} strokeWidth={2} tension={0.5} lineCap="round" lineJoin="round" draggable={drag} />
-            ))}
+              {rectangles.map((rect, i) => (
+                <Rect key={i} {...rect} fill={color} stroke="black" strokeWidth={2} draggable={drag} />
+              ))}
+              {circles.map((circle, i) => (
+                <Circle key={i} {...circle} fill={color} stroke="black" strokeWidth={2} draggable={drag} />
+              ))}
+              {arrows.map((arrow, i) => (
+                <Line key={i} {...arrow} stroke={color} strokeWidth={2} draggable={drag} />
+              ))}
+              {penLines.map((pen, i) => (
+                <Line key={i} {...pen} stroke={color} strokeWidth={2} tension={0.5} lineCap="round" lineJoin="round" draggable={drag} />
+              ))}
 
-            {/* Render Current Shape Being Drawn */}
-            {currentShape && (
-              <>
-                {currentTool === "rectangle" && (
-                  <Rect
-                    x={currentShape.x}
-                    y={currentShape.y}
-                    width={currentShape.width}
-                    height={currentShape.height}
-                    stroke={color}
-                    strokeWidth={2}
-                  />
-                )}
-                {currentTool === "circle" && (
-                  <Circle
-                    x={currentShape.x}
-                    y={currentShape.y}
-                    radius={currentShape.radius}
-                    stroke={color}
-                    strokeWidth={2}
-                  />
-                )}
-                {currentTool === "arrow" && (
-                  <Line
-                    points={currentShape.points}
-                    stroke={color}
-                    strokeWidth={2}
-                  />
-                )}
-                {currentTool === "pen" && (
-                  <Line
-                    points={currentShape.points}
-                    stroke={color}
-                    strokeWidth={2}
-                    tension={0.5}
-                    lineCap="round"
-                    lineJoin="round"
-                  />
-                )}
-              </>
-            )}
-          </Layer>
-        </Stage>
+              {/* Render Current Shape Being Drawn */}
+              {currentShape && (
+                <>
+                  {currentTool === "rectangle" && (
+                    <Rect
+                      x={currentShape.x}
+                      y={currentShape.y}
+                      width={currentShape.width}
+                      height={currentShape.height}
+                      stroke={color}
+                      strokeWidth={2}
+                    />
+                  )}
+                  {currentTool === "circle" && (
+                    <Circle
+                      x={currentShape.x}
+                      y={currentShape.y}
+                      radius={currentShape.radius}
+                      stroke={color}
+                      strokeWidth={2}
+                    />
+                  )}
+                  {currentTool === "arrow" && (
+                    <Line
+                      points={currentShape.points}
+                      stroke={color}
+                      strokeWidth={2}
+                    />
+                  )}
+                  {currentTool === "pen" && (
+                    <Line
+                      points={currentShape.points}
+                      stroke={color}
+                      strokeWidth={2}
+                      tension={0.5}
+                      lineCap="round"
+                      lineJoin="round"
+                    />
+                  )}
+                </>
+              )}
+            </Layer>
+          </Stage>
+        </div>
+        {/* Add Zoom Buttons in the Toolbar */}
+        <div className="toolbar-btn flex justify-between items-center">
+          <button onClick={handleZoomIn} className="text-2xl group-hover:text-blue-500 transition">
+            ➕
+          </button>
+          <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Zoom</span>
+          <button onClick={handleZoomOut} className="text-2xl group-hover:text-blue-500 transition">
+            ➖
+          </button>
+
+        </div>
       </div>
     </div>
   );
