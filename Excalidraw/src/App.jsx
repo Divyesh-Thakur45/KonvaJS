@@ -2,33 +2,32 @@ import React, { useRef, useState, useEffect } from "react";
 import { Stage, Layer, Rect, Circle, Line, Image, Group } from "react-konva";
 import { RiDragDropLine, RiRectangleFill, RiResetLeftFill } from "react-icons/ri";
 import { FaCircle, FaLongArrowAltDown } from "react-icons/fa";
-import { CiPen } from "react-icons/ci";
 import { FcCursor } from "react-icons/fc";
 import { FcAddImage } from "react-icons/fc";
+import { FcEditImage } from "react-icons/fc";
 import { TiExport } from "react-icons/ti";
-
 import "./App.css";
 
 export default function App() {
-  const [isDrawingRectangle, setIsDrawingRectangle] = useState(false);
-  const [isDrawingCircle, setIsDrawingCircle] = useState(false);
-  const [isDrawingArrow, setIsDrawingArrow] = useState(false);
-  const [isDrawingPen, setIsDrawingPen] = useState(false);
-  const [rectProps, setRectProps] = useState({ x: 0, y: 0, width: 0, height: 0 });
-  const [circleProps, setCircleProps] = useState({ x: 0, y: 0, radius: 0 });
-  const [arrowProps, setArrowProps] = useState({ points: [] });
-  const [penPoints, setPenPoints] = useState([]);
+  const [rectangles, setRectangles] = useState([]);
+  const [circles, setCircles] = useState([]);
+  const [arrows, setArrows] = useState([]);
+  const [penLines, setPenLines] = useState([]);
+  const [currentShape, setCurrentShape] = useState(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentTool, setCurrentTool] = useState(null);
   const [image, setImage] = useState();
   const [konvaImage, setKonvaImage] = useState(null);
   const [secondImage, setSecondImage] = useState();
   const [konvaSecondImage, setKonvaSecondImage] = useState(null);
   const [drag, setDrag] = useState(false);
   const [color, setColor] = useState("black");
+  const [points, setPoints] = useState([]);
+  const [isClosed, setIsClosed] = useState(false);
+  const [showPolygonBorder, setShowPolygonBorder] = useState(false);
+
   const stageRef = useRef(null);
   const layerRef = useRef(null);
-
-  const [points, setPoints] = useState([]); // Store polygon points
-  const [isClosed, setIsClosed] = useState(false); // Track if polygon is closed
 
   // Load Image into Konva
   useEffect(() => {
@@ -81,75 +80,85 @@ export default function App() {
 
   // Reset Canvas
   const handleReset = () => {
-    setIsDrawingRectangle(false);
-    setIsDrawingCircle(false);
-    setIsDrawingArrow(false);
-    setIsDrawingPen(false);
-    setRectProps({ x: 0, y: 0, width: 0, height: 0 });
-    setCircleProps({ x: 0, y: 0, radius: 0 });
-    setArrowProps({ points: [] });
-    setPenPoints([]);
+    setRectangles([]);
+    setCircles([]);
+    setArrows([]);
+    setPenLines([]);
     setPoints([]);
     setIsClosed(false);
+    setShowPolygonBorder(false);
   };
 
   // Handle Mouse Down Event on Stage (Start Drawing)
   const handleMouseDown = (e) => {
+    if (drag) return; // If drag mode is on, do not create new shapes
+
     const stage = stageRef.current;
     const mousePos = stage.getPointerPosition();
 
-    if (isDrawingRectangle) {
-      setRectProps({
-        x: mousePos.x,
-        y: mousePos.y,
-        width: 0,
-        height: 0,
-      });
-    } else if (isDrawingCircle) {
-      setCircleProps({
-        x: mousePos.x,
-        y: mousePos.y,
-        radius: 0,
-      });
-    } else if (isDrawingArrow) {
-      setArrowProps({
-        points: [mousePos.x, mousePos.y, mousePos.x, mousePos.y],
-      });
-    } else if (isDrawingPen) {
-      setPenPoints([mousePos.x, mousePos.y]);
+    setIsDrawing(true);
+
+    if (currentTool === "rectangle") {
+      setCurrentShape({ x: mousePos.x, y: mousePos.y, width: 0, height: 0 });
+    } else if (currentTool === "circle") {
+      setCurrentShape({ x: mousePos.x, y: mousePos.y, radius: 0 });
+    } else if (currentTool === "arrow") {
+      setCurrentShape({ points: [mousePos.x, mousePos.y, mousePos.x, mousePos.y] });
+    } else if (currentTool === "pen") {
+      setCurrentShape({ points: [mousePos.x, mousePos.y] });
     }
   };
 
   // Handle Mouse Move Event (Resize Shapes)
   const handleMouseMove = (e) => {
+    if (!isDrawing || !currentShape || drag) return;
+
     const stage = stageRef.current;
     const mousePos = stage.getPointerPosition();
 
-    if (isDrawingRectangle) {
-      setRectProps({
-        ...rectProps,
-        width: mousePos.x - rectProps.x,
-        height: mousePos.y - rectProps.y,
-      });
-    } else if (isDrawingCircle) {
-      const radius = Math.sqrt(
-        Math.pow(mousePos.x - circleProps.x, 2) + Math.pow(mousePos.y - circleProps.y, 2)
-      );
-      setCircleProps({
-        ...circleProps,
-        radius: radius,
-      });
-    } else if (isDrawingArrow) {
-      setArrowProps({
-        points: [arrowProps.points[0], arrowProps.points[1], mousePos.x, mousePos.y],
-      });
-    } else if (isDrawingPen) {
-      setPenPoints([...penPoints, mousePos.x, mousePos.y]);
+    if (currentTool === "rectangle") {
+      setCurrentShape((prev) => ({
+        ...prev,
+        width: mousePos.x - prev.x,
+        height: mousePos.y - prev.y,
+      }));
+    } else if (currentTool === "circle") {
+      setCurrentShape((prev) => ({
+        ...prev,
+        radius: Math.sqrt(Math.pow(mousePos.x - prev.x, 2) + Math.pow(mousePos.y - prev.y, 2)),
+      }));
+    } else if (currentTool === "arrow") {
+      setCurrentShape((prev) => ({
+        points: [prev.points[0], prev.points[1], mousePos.x, mousePos.y],
+      }));
+    } else if (currentTool === "pen") {
+      setCurrentShape((prev) => ({
+        points: [...prev.points, mousePos.x, mousePos.y],
+      }));
     }
   };
 
+  // Handle Mouse Up Event (Finish Drawing)
+  const handleMouseUp = () => {
+    if (!isDrawing || !currentShape || drag) return;
+
+    setIsDrawing(false);
+
+    if (currentTool === "rectangle") {
+      setRectangles([...rectangles, currentShape]);
+    } else if (currentTool === "circle") {
+      setCircles([...circles, currentShape]);
+    } else if (currentTool === "arrow") {
+      setArrows([...arrows, currentShape]);
+    } else if (currentTool === "pen") {
+      setPenLines([...penLines, currentShape]);
+    }
+
+    setCurrentShape(null);
+  };
+
   const handleClick = (e) => {
-    if (isClosed) return; // Stop if polygon is already closed
+    if (isClosed || drag || !showPolygonBorder) return; // Stop if polygon is already closed, in drag mode, or edit tool is not active
 
     const { x, y } = e.target.getStage().getPointerPosition();
 
@@ -168,11 +177,11 @@ export default function App() {
     setPoints([...points, x, y]);
   };
 
-  // Handle Mouse Up Event (Finish Drawing)
-  const handleMouseUp = () => {
-    setIsDrawingRectangle(false);
-    setIsDrawingCircle(false);
-    setIsDrawingArrow(false);
+  // Handle Edit Tool Click
+  const handleEditToolClick = () => {
+    setShowPolygonBorder(true); // Show polygon border when edit tool is clicked
+    setCurrentTool(null); // Reset current tool
+    setDrag(false); // Disable drag mode
   };
 
   return (
@@ -180,32 +189,71 @@ export default function App() {
       <div className="flex flex-col items-center gap-6 w-[auto] mt-[40px] p-6 bg-white rounded-lg shadow-xl h-[90vh] overflow-y-scroll">
         {/* Toolbar Section */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 lg:grid-cols-1 gap-4 p-4 rounded-md bg-gray-100 shadow-md">
+          {/* Edit Tool */}
+          <button
+            className="toolbar-btn group flex flex-col items-center justify-center gap-2"
+            onClick={handleEditToolClick}
+          >
+            <FcEditImage className="text-2xl group-hover:text-blue-500 transition" />
+            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Edit Image</span>
+          </button>
+
           {/* Cursor Tool */}
-          <button className="toolbar-btn group flex flex-col items-center justify-center gap-2" onClick={() => setDrag(!drag)}>
+          <button
+            className="toolbar-btn group flex flex-col items-center justify-center gap-2"
+            onClick={() => {
+              setDrag(!drag);
+              setCurrentTool(null); // Reset current tool when switching to cursor
+            }}
+          >
             <FcCursor className="text-2xl group-hover:text-blue-500 transition" />
             <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Cursor</span>
           </button>
 
           {/* Rectangle Tool */}
-          <button className="toolbar-btn group flex flex-col items-center justify-center gap-2" onClick={() => setIsDrawingRectangle(true)}>
+          <button
+            className="toolbar-btn group flex flex-col items-center justify-center gap-2"
+            onClick={() => {
+              setCurrentTool("rectangle");
+              setDrag(false); // Disable drag mode when selecting a shape tool
+            }}
+          >
             <RiRectangleFill className="text-2xl group-hover:text-blue-500 transition" />
             <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Rectangle</span>
           </button>
 
           {/* Circle Tool */}
-          <button className="toolbar-btn group flex flex-col items-center justify-center gap-2" onClick={() => setIsDrawingCircle(true)}>
+          <button
+            className="toolbar-btn group flex flex-col items-center justify-center gap-2"
+            onClick={() => {
+              setCurrentTool("circle");
+              setDrag(false); // Disable drag mode when selecting a shape tool
+            }}
+          >
             <FaCircle className="text-2xl group-hover:text-blue-500 transition" />
             <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Circle</span>
           </button>
 
           {/* Arrow Tool */}
-          <button className="toolbar-btn group flex flex-col items-center justify-center gap-2" onClick={() => setIsDrawingArrow(true)}>
+          <button
+            className="toolbar-btn group flex flex-col items-center justify-center gap-2"
+            onClick={() => {
+              setCurrentTool("arrow");
+              setDrag(false); // Disable drag mode when selecting a shape tool
+            }}
+          >
             <FaLongArrowAltDown className="text-2xl group-hover:text-blue-500 transition" />
             <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Arrow</span>
           </button>
 
           {/* Pen Tool */}
-          <button className="toolbar-btn group flex flex-col items-center justify-center gap-2" onClick={() => setIsDrawingPen(true)}>
+          <button
+            className="toolbar-btn group flex flex-col items-center justify-center gap-2"
+            onClick={() => {
+              setCurrentTool("pen");
+              setDrag(false); // Disable drag mode when selecting a shape tool
+            }}
+          >
             <span className="text-2xl group-hover:text-blue-500 transition">✒️</span>
             <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">Pen</span>
           </button>
@@ -221,7 +269,10 @@ export default function App() {
           </div>
 
           {/* Reset Button */}
-          <button className="toolbar-btn group flex flex-col items-center justify-center gap-2" onClick={handleReset}>
+          <button
+            className="toolbar-btn group flex flex-col items-center justify-center gap-2"
+            onClick={handleReset}
+          >
             <RiResetLeftFill className="text-2xl group-hover:text-red-500 transition" />
             <span className="text-sm font-medium text-gray-700 group-hover:text-red-600">Reset</span>
           </button>
@@ -253,7 +304,6 @@ export default function App() {
           </button>
         </div>
       </div>
-
 
       {/* KonvaJS Canvas */}
       <div className="border-2 ml-[230px]">
@@ -295,69 +345,86 @@ export default function App() {
               </Group>
             )}
 
+            {/* Render Polygon Border */}
+            {showPolygonBorder && points.length > 1 && (
+              <Line
+                points={points}
+                stroke={color}
+                strokeWidth={2}
+                closed={true}
+              />
+            )}
+
             {/* Render Points */}
-            {points.map((point, index) => {
-              if (index % 2 !== 0) return null; // Skip odd indices
-              return (
-                <Circle
-                  key={index}
-                  x={points[index]}
-                  y={points[index + 1]}
-                  radius={1}
-                  fill={color}
-                />
-              );
-            })}
+            {showPolygonBorder &&
+              points.map((point, index) => {
+                if (index % 2 !== 0) return null; // Skip odd indices
+                return (
+                  <Circle
+                    key={index}
+                    x={points[index]}
+                    y={points[index + 1]}
+                    radius={1}
+                    stroke={color}
+                    strokeWidth={2}
+                    fill={color}
+                  />
+                );
+              })}
 
-            {/* Rectangle */}
-            {isDrawingRectangle && (
-              <Rect
-                x={rectProps.x}
-                y={rectProps.y}
-                width={rectProps.width}
-                height={rectProps.height}
-                fill={color}
-                stroke="black"
-                strokeWidth={2}
-                draggable={drag}
-              />
-            )}
+            {rectangles.map((rect, i) => (
+              <Rect key={i} {...rect} fill={color} stroke="black" strokeWidth={2} draggable={drag} />
+            ))}
+            {circles.map((circle, i) => (
+              <Circle key={i} {...circle} fill={color} stroke="black" strokeWidth={2} draggable={drag} />
+            ))}
+            {arrows.map((arrow, i) => (
+              <Line key={i} {...arrow} stroke={color} strokeWidth={2} draggable={drag} />
+            ))}
+            {penLines.map((pen, i) => (
+              <Line key={i} {...pen} stroke={color} strokeWidth={2} tension={0.5} lineCap="round" lineJoin="round" draggable={drag} />
+            ))}
 
-            {/* Circle */}
-            {isDrawingCircle && (
-              <Circle
-                x={circleProps.x}
-                y={circleProps.y}
-                radius={circleProps.radius}
-                fill={color}
-                stroke="black"
-                strokeWidth={2}
-                draggable={drag}
-              />
-            )}
-
-            {/* Arrow */}
-            {isDrawingArrow && (
-              <Line
-                points={arrowProps.points}
-                stroke={color}
-                strokeWidth={2}
-                fill={color}
-                draggable={drag}
-              />
-            )}
-
-            {/* Pen */}
-            {isDrawingPen && (
-              <Line
-                points={penPoints}
-                stroke={color}
-                strokeWidth={2}
-                tension={0.5}
-                lineCap="round"
-                lineJoin="round"
-                draggable={drag}
-              />
+            {/* Render Current Shape Being Drawn */}
+            {currentShape && (
+              <>
+                {currentTool === "rectangle" && (
+                  <Rect
+                    x={currentShape.x}
+                    y={currentShape.y}
+                    width={currentShape.width}
+                    height={currentShape.height}
+                    stroke={color}
+                    strokeWidth={2}
+                  />
+                )}
+                {currentTool === "circle" && (
+                  <Circle
+                    x={currentShape.x}
+                    y={currentShape.y}
+                    radius={currentShape.radius}
+                    stroke={color}
+                    strokeWidth={2}
+                  />
+                )}
+                {currentTool === "arrow" && (
+                  <Line
+                    points={currentShape.points}
+                    stroke={color}
+                    strokeWidth={2}
+                  />
+                )}
+                {currentTool === "pen" && (
+                  <Line
+                    points={currentShape.points}
+                    stroke={color}
+                    strokeWidth={2}
+                    tension={0.5}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                )}
+              </>
             )}
           </Layer>
         </Stage>
